@@ -320,6 +320,10 @@ html,body{background:#0a0a0a;color:#f0f0f0;font-family:'DM Sans',sans-serif;max-
           <div class="field"><label>Capitale investito €</label><input type="number" id="f-capital" placeholder="0.00" inputmode="decimal"></div>
           <div class="field"><label>Valore attuale €</label><input type="number" id="f-curval" placeholder="0.00" inputmode="decimal"></div>
         </div>
+        <div id="a-acqcost-sec" style="display:none">
+          <div class="field"><label>Costi di acquisto € <span style="color:#606060;font-weight:300">(notaio, agenzia…)</span></label><input type="number" id="f-acqcost" placeholder="0.00" inputmode="decimal"></div>
+          <div class="info-box" style="margin-top:4px">Vengono sommati al capitale investito, non alle commissioni broker.</div>
+        </div>
       </div>
       <!-- deposito -->
       <div id="a-deposit-sec" style="display:none">
@@ -402,6 +406,9 @@ html,body{background:#0a0a0a;color:#f0f0f0;font-family:'DM Sans',sans-serif;max-
       <div class="fg2">
         <div class="field"><label>Capitale investito €</label><input type="number" id="ed-capital" inputmode="decimal"></div>
         <div class="field"><label>Valore attuale €</label><input type="number" id="ed-curval" inputmode="decimal"></div>
+      </div>
+      <div id="ed-acqcost-sec" style="display:none">
+        <div class="field"><label>Costi di acquisto € <span style="color:#606060;font-weight:300">(notaio, agenzia…)</span></label><input type="number" id="ed-acqcost" placeholder="0.00" inputmode="decimal"></div>
       </div>
     </div>
     <div class="field" style="opacity:.5"><label>Commissioni totali € (da operazioni)</label><input type="number" id="ed-cost" inputmode="decimal" readonly style="cursor:default"></div>
@@ -848,6 +855,7 @@ function renderHome(){
           '<div class="sub '+(NEUTRAL.indexOf(a.type)>=0?'neutral':sgn(rWithComm))+'">'+pct(rWithComm)+'</div></div></div>'+
           '<div class="c-rows">'+
           '<div class="c-row"><span class="k">Investito</span><span class="v">'+eur(a.invested||0)+'</span></div>'+
+          (a.type==='property'&&a.acqcost?'<div class="c-row"><span class="k" style="color:#444;font-size:11px">di cui costi acquisto</span><span class="v" style="font-size:11px;color:#606060">'+eur(a.acqcost)+'</span></div>':'')+
           pmcRow+
           '<div class="c-row"><span class="k">'+(NEUTRAL.indexOf(a.type)>=0?'Variazione':'Guadagno lordo')+'</span>'+
           '<span class="v '+(NEUTRAL.indexOf(a.type)>=0?'neutral':sgn(netWithComm))+'">'+eur(netWithComm)+'</span></div>'+
@@ -1193,7 +1201,8 @@ function openAdd(){
   document.getElementById('step-detail').style.display='none';
   document.getElementById('add-title').textContent='Nuovo investimento';
   document.querySelectorAll('.tbtn').forEach(function(b){b.classList.remove('sel');});
-  ['f-ticker','f-name','f-isin','f-shares','f-pmc','f-capital','f-curval','f-note','f-rate','f-dep-capital'].forEach(function(id){var el=document.getElementById(id);if(el)el.value='';});
+  ['f-ticker','f-name','f-isin','f-shares','f-pmc','f-capital','f-curval','f-note','f-rate','f-dep-capital','f-acqcost'].forEach(function(id){var el=document.getElementById(id);if(el)el.value='';});
+  document.getElementById('a-acqcost-sec').style.display='none';
   document.getElementById('f-cost').value='0';document.getElementById('f-fxrate').value='1.00';
   document.getElementById('f-opdate').value=todayStr();document.getElementById('f-rate-start').value=todayStr();
   document.getElementById('f-currency').value='EUR';
@@ -1213,6 +1222,7 @@ function pickType(t){
   document.getElementById('a-shares-sec').style.display=isM?'none':'';
   document.getElementById('a-isin-sec').style.display=t==='etf'?'':'none';
   document.getElementById('a-manual-sec').style.display=(isM&&!isDeposit)?'':'none';
+  document.getElementById('a-acqcost-sec').style.display=(t==='property')?'':'none';
   document.getElementById('a-deposit-sec').style.display=isDeposit?'':'none';
   var sugg=TYPE_SUGG[t]||[],suggEl=document.getElementById('name-suggestions');
   suggEl.innerHTML='';
@@ -1240,6 +1250,7 @@ function saveAsset(){
   var fxrate=!isM?parseFloat(document.getElementById('f-fxrate').value)||1:1;
   var capital=(isM&&!isDeposit)?parseFloat(document.getElementById('f-capital').value)||0:0;
   var curval=(isM&&!isDeposit)?parseFloat(document.getElementById('f-curval').value)||0:0;
+  var acqcost=(newType==='property')?parseFloat(document.getElementById('f-acqcost').value)||0:0;
   var cost=parseFloat(document.getElementById('f-cost').value)||0;
   var isin=document.getElementById('f-isin')?document.getElementById('f-isin').value.trim().toUpperCase():'';
   var note=document.getElementById('f-note').value.trim();
@@ -1247,10 +1258,11 @@ function saveAsset(){
   var rateGross=isDeposit?parseFloat(document.getElementById('f-rate').value)||0:0;
   var rateStart=isDeposit?document.getElementById('f-rate-start').value||opDate:'';
   var depCap=isDeposit?parseFloat(document.getElementById('f-dep-capital').value)||0:0;
-  var invested=isDeposit?depCap:(isM?capital:parseFloat((shares*pmc/fxrate).toFixed(2)));
+  var invested=isDeposit?depCap:(isM?capital+acqcost:parseFloat((shares*pmc/fxrate).toFixed(2)));
   var a={id:uid(),type:newType,name,ticker,isin,note,shares,invested,cost,
     curVal:(isM&&!isDeposit)?curval:undefined,currency,
-    rateGross:rateGross||undefined,rateStart:rateStart||undefined};
+    rateGross:rateGross||undefined,rateStart:rateStart||undefined,
+    acqcost:acqcost||undefined};
   assets.push(a);
   if(invested>0||shares>0){ops.push({id:uid(),assetId:a.id,type:'buy',shares,price:pmc,mktPrice:pmc,amount:invested,cost,date:opDate,note:'Caricamento iniziale',vs:(isM&&!isDeposit)?curval:undefined,currency});a.pmc=pmc;}
   closeOv('ov-add');renderAll();save();
@@ -1336,7 +1348,14 @@ function openEdit(aid){
   document.getElementById('ed-manual-w').style.display=(isM&&!isDeposit)?'':'none';
   document.getElementById('ed-deposit-w').style.display=isDeposit?'':'none';
   if(!isM)document.getElementById('ed-ticker').value=a.ticker||'';
-  if(isM&&!isDeposit){document.getElementById('ed-capital').value=a.invested||0;document.getElementById('ed-curval').value=(a.curVal!=null?a.curVal:a.invested)||0;}
+  if(isM&&!isDeposit){
+    // Per property: capitale investito = invested - acqcost (mostra separati)
+    var dispCapital=(a.type==='property'&&a.acqcost)?(a.invested||0)-(a.acqcost||0):(a.invested||0);
+    document.getElementById('ed-capital').value=dispCapital;
+    document.getElementById('ed-curval').value=(a.curVal!=null?a.curVal:a.invested)||0;
+    document.getElementById('ed-acqcost-sec').style.display=(a.type==='property')?'':'none';
+    document.getElementById('ed-acqcost').value=a.acqcost||0;
+  }
   if(isDeposit){document.getElementById('ed-rate').value=a.rateGross||0;document.getElementById('ed-rate-start').value=a.rateStart||'';document.getElementById('ed-dep-capital').value=a.invested||0;}
   openOv('ov-edit');
 }
@@ -1349,7 +1368,14 @@ function confirmEdit(){
   // a.cost calcolato dagli ops — non modificabile manualmente
   var isM=MANUAL.indexOf(a.type)>=0,isDeposit=a.type==='deposit';
   if(!isM)a.ticker=document.getElementById('ed-ticker').value.trim().toUpperCase();
-  if(isM&&!isDeposit){a.invested=parseFloat(document.getElementById('ed-capital').value)||0;a.curVal=parseFloat(document.getElementById('ed-curval').value)||0;}
+  if(isM&&!isDeposit){
+    var editCapital=parseFloat(document.getElementById('ed-capital').value)||0;
+    var editAcqcost=(a.type==='property')?parseFloat(document.getElementById('ed-acqcost').value)||0:0;
+    a.invested=parseFloat((editCapital+editAcqcost).toFixed(2));
+    a.curVal=parseFloat(document.getElementById('ed-curval').value)||0;
+    if(editAcqcost>0) a.acqcost=editAcqcost;
+    else delete a.acqcost;
+  }
   if(isDeposit){a.rateGross=parseFloat(document.getElementById('ed-rate').value)||0;a.rateStart=document.getElementById('ed-rate-start').value;a.invested=parseFloat(document.getElementById('ed-dep-capital').value)||0;}
   closeOv('ov-edit');renderAll();save();
 }
